@@ -86,9 +86,6 @@ mymd ()
 #-------------------------------------------------------------------------------
 start_watch ()
 {
-    echo "start_watch"
-    pwd
-    echo "#########################"
     inotifywait \
         --monitor \
         --event close_write \
@@ -106,28 +103,26 @@ start_watch ()
 #-------------------------------------------------------------------------------
 replicate_files ()
 {
-    echo "replicate_file"
-    pwd
-    echo "#########################"
-while read event
-do
-    echo "$event" >> "$event_log"
+    while read event
+    do
+        echo "$event" >> "$event_log"
 
-    file=$(echo "$event" | awk -F \| '{print $NF'})
-    file=${file:2}
-    copy=true
-    [[ "$exclude" ]] && {
-        [[ "$file" =~ $exclude ]] && {
-            echo "pomijam: $file"
-            copy=false
+        file=$(echo "$event" | awk -F \| '{print $NF'})
+        file=${file:2}
+        copy=true
+        [[ "$exclude" ]] && {
+            [[ "$file" =~ $exclude ]] && {
+                echo "$(date +'%F %T')|pomijam: $file" >> "$exclude_log"
+                echo "pominięty" >> "$event_log"
+                copy=false
+            }
         }
-    }
-    [[ $copy ]] && {
-        cmd="cp --force --preserve=mode,timestamps,links --parents --update --verbose \"$file\" \"$backup_dir\" >> \"$cp_log\" 2>&1"
-        echo "$(date +'%F %T')|$cmd" >> "$cmd_log"
-        eval "$cmd" || echo "$(date +'%F %T')|$cmd" >> "$err_log"
-    }
-done < "$inotify_pipe"
+        if $copy; then
+            cmd="cp --force --preserve=mode,timestamps,links --parents --update --verbose \"$file\" \"$backup_dir\" >> \"$cp_log\" 2>&1"
+            echo "$(date +'%F %T')|$cmd" >> "$cmd_log"
+            eval "$cmd" || echo "$(date +'%F %T')|$cmd" >> "$err_log"
+        fi
+    done < "$inotify_pipe"
 
 }    # ----------  end of function replicate_files  ----------
 
@@ -156,12 +151,13 @@ shift $(($OPTIND-1))
 #-------------------------------------------------------------------------------
 log_dir="$log_dir/$(basename $0).log"
 mymd "$log_dir"
-event_log="$log_dir/event_log"                  # zdarzenia
-cmd_log="$log_dir/cmd_log"                      # generowane komendy
+event_log="$log_dir/event.log"                  # zdarzenia
+exclude_log="$log_dir/exclude.log"              # wykluczenia
+cmd_log="$log_dir/cmd.log"                      # generowane komendy
 cp_log="$log_dir/cp.log"                        # rzeczywiście skopiowane pliki
-err_log="$log_dir/err.log"                      # błędy (por. $cp_log)
+err_log="$log_dir/cp.err"                       # błędy (por. $cp_log)
 inotify_err="$log_dir/notify.err"               # błędy inotify
-for log in "$event_log" "$cmd_log" "$cp_log" "$err_log" "$inotify_err"; do
+for log in "$event_log" "$exclude_log" "$cmd_log" "$cp_log" "$inotify_err"; do
     cmd="cat /dev/null > \"$log\""
     eval "$cmd"
 done
@@ -169,6 +165,7 @@ inotify_pipe="/tmp/$(basename $0).pipe"         # pipka do komunikacji notify ->
 echo $inotify_pipe
 mknod "$inotify_pipe" p || exit 1
 #------------------------------------------------------------------------------myregexp="^Wideo*|^Szablony*"
+# lista wykluczeń na regexp akceptowane w bash
 exclude=''
 [[ "$exclude_list" != "none" ]] && {
     while read line ; do
