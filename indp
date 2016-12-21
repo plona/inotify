@@ -21,9 +21,8 @@
 #===============================================================================
 set -o nounset                              # Treat unset variables as an error
 ERR_FUNC=1
-ERR_CMD=2
-PF='012d'                                       # printf format string
-exclude_list="none"
+#ERR_CMD=2
+#PF='012d'                                       # printf format string
 #set -o xtrace
 #set -o verbose
 #===============================================================================
@@ -78,58 +77,38 @@ mymd ()
         }
     fi
 }    # ----------  end of function mymd  ----------
-#===============================================================================
-#  MAIN SCRIPT
-#===============================================================================
-#-----------------------------------------------------------------------
-#  Handle command line arguments
-#-----------------------------------------------------------------------
-while getopts ":d:e:b:l:h" opt
-do
-  case $opt in
-    h|help )  usage; exit 0   ;;
-    d ) dir_to_watch=${OPTARG} ;;
-    e ) exclude_list=${OPTARG} ;;
-    b ) backup_dir=${OPTARG} ;;
-    l ) log_dir=${OPTARG} ;;
-    \? )  echo -e "\n  Option does not exist : $OPTARG\n"
-          usage; exit 1   ;;
-  esac
-done
-shift $(($OPTIND-1))
-#-------------------------------------------------------------------------------
-# 
-log_dir="$log_dir/$(basename $0).log"
-mymd "$log_dir"
-event_log="$log_dir/event_log"                  # zdarzenia
-cmd_log="$log_dir/cmd_log"                      # generowane komendy
-cp_log="$log_dir/cp.log"                        # rzeczywiście skopiowane pliki
-err_log="$log_dir/err.log"                      # błędy (por. $cp_log)
-for log in "$event_log" "$cmd_log" "$cp_log" "$err_log"; do
-    cmd="cat /dev/null > \"$log\""
-    eval "$cmd"
-done
-inotify_err="$log_dir/notify.err"
-rm -fv "$inotify_err"
-inotify_pipe="/tmp/$(basename $0).pipe"
-echo $inotify_pipe
-mknod "$inotify_pipe" p || exit 1
-#------------------------------------------------------------------------------myregexp="^Wideo*|^Szablony*"
-exclude=''
-[[ "$exclude_list" != "none" ]] && {
-    while read line ; do
-        exclude+="$line|"
-    done < "$exclude_list"
-    exclude=${exclude:0:-1}
-}
 
-mycd "$dir_to_watch"
-inotifywait \
-    --monitor \
-    --event close_write \
-    --recursive \
-    --timefmt "%F %T" \
-    --format "|%T|%e|%w%f" . 2> "$inotify_err" | \
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  start_watch
+#   DESCRIPTION:  
+#    PARAMETERS:  
+#       RETURNS:  
+#-------------------------------------------------------------------------------
+start_watch ()
+{
+    echo "start_watch"
+    pwd
+    echo "#########################"
+    inotifywait \
+        --monitor \
+        --event close_write \
+        --recursive \
+        --timefmt "%F %T" \
+        --format "|%T|%e|%w%f" . 1> "$inotify_pipe" 2> "$inotify_err"
+
+}    # ----------  end of function start_watch  ----------
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  replicate_files
+#   DESCRIPTION:  
+#    PARAMETERS:  
+#       RETURNS:  
+#-------------------------------------------------------------------------------
+replicate_files ()
+{
+    echo "replicate_file"
+    pwd
+    echo "#########################"
 while read event
 do
     echo "$event" >> "$event_log"
@@ -146,9 +125,69 @@ do
     [[ $copy ]] && {
         cmd="cp --force --preserve=mode,timestamps,links --parents --update --verbose \"$file\" \"$backup_dir\" >> \"$cp_log\" 2>&1"
         echo "$(date +'%F %T')|$cmd" >> "$cmd_log"
-
         eval "$cmd" || echo "$(date +'%F %T')|$cmd" >> "$err_log"
     }
+done < "$inotify_pipe"
+
+}    # ----------  end of function replicate_files  ----------
+
+#===============================================================================
+#  MAIN SCRIPT
+#===============================================================================
+#-----------------------------------------------------------------------
+#  Handle command line arguments
+#-----------------------------------------------------------------------
+exclude_list="none"
+while getopts ":d:e:b:l:h" opt
+do
+  case $opt in
+    h|help )  usage; exit 0   ;;
+    d ) dir_to_watch=${OPTARG} ;;
+    e ) exclude_list=${OPTARG} ;;
+    b ) backup_dir=${OPTARG} ;;
+    l ) log_dir=${OPTARG} ;;
+    \? )  echo -e "\n  Option does not exist : $OPTARG\n"
+          usage; exit 1   ;;
+  esac
 done
+shift $(($OPTIND-1))
+#-------------------------------------------------------------------------------
+# pliki logów i pipki
+#-------------------------------------------------------------------------------
+log_dir="$log_dir/$(basename $0).log"
+mymd "$log_dir"
+event_log="$log_dir/event_log"                  # zdarzenia
+cmd_log="$log_dir/cmd_log"                      # generowane komendy
+cp_log="$log_dir/cp.log"                        # rzeczywiście skopiowane pliki
+err_log="$log_dir/err.log"                      # błędy (por. $cp_log)
+inotify_err="$log_dir/notify.err"               # błędy inotify
+for log in "$event_log" "$cmd_log" "$cp_log" "$err_log" "$inotify_err"; do
+    cmd="cat /dev/null > \"$log\""
+    eval "$cmd"
+done
+inotify_pipe="/tmp/$(basename $0).pipe"         # pipka do komunikacji notify -> replikacja
+echo $inotify_pipe
+mknod "$inotify_pipe" p || exit 1
+#------------------------------------------------------------------------------myregexp="^Wideo*|^Szablony*"
+exclude=''
+[[ "$exclude_list" != "none" ]] && {
+    while read line ; do
+        exclude+="$line|"
+    done < "$exclude_list"
+    exclude=${exclude:0:-1}
+}
+
+mycd "$dir_to_watch"
+
+start_watch &
+disown
+
+replicate_files &
+disown
+
+sleep 1
+while read line; do
+    echo $line
+done < "$inotify_err"
 
 exit 0
