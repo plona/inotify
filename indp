@@ -20,8 +20,8 @@
 #  GLOBAL DECLARATIONS
 #===============================================================================
 set -o nounset                              # Treat unset variables as an error
-ERR_FUNC=1
-#ERR_CMD=2
+ERR_FUNC=2
+ERR_SCRIPT=1
 #PF='012d'                                       # printf format string
 #set -o xtrace
 #set -o verbose
@@ -142,7 +142,7 @@ do
     b ) backup_dir=${OPTARG} ;;
     l ) log_dir=${OPTARG} ;;
     \? )  echo -e "\n  Option does not exist : $OPTARG\n"
-          usage; exit 1   ;;
+          usage; exit $ERR_SCRIPT   ;;
   esac
 done
 shift $(($OPTIND-1))
@@ -161,9 +161,12 @@ for log in "$event_log" "$exclude_log" "$cmd_log" "$cp_log" "$inotify_err"; do
     cmd="cat /dev/null > \"$log\""
     eval "$cmd"
 done
+
 inotify_pipe="/tmp/$(basename $0).pipe"         # pipka do komunikacji notify -> replikacja
-echo $inotify_pipe
-mknod "$inotify_pipe" p || exit 1
+o_umask=$(umask)
+umask 0066
+mknod "$inotify_pipe" p || exit $ERR_SCRIPT
+umask $o_umask
 #------------------------------------------------------------------------------myregexp="^Wideo*|^Szablony*"
 # lista wykluczeń na regexp akceptowane w bash
 exclude=''
@@ -183,8 +186,23 @@ replicate_files &
 disown
 
 sleep 1
+ok=true
 while read line; do
     echo $line
+    [[ $line =~ .*[Ff]ailed.* ]] && ok=false
 done < "$inotify_err"
+
+[[ $ok == true ]] && {
+    echo "można odpalić sambę"
+    echo "PID gdzieś zapisać!"
+    echo OK
+    exit 0
+} || {
+    echo "zatrzymać sambę (na wszelki wypadek)"
+    echo "Usunąć PID"
+    rm -fv "$inotify_pipe"
+    echo FAIL
+    exit $ERR_SCRIPT
+}
 
 exit 0
