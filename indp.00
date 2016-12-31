@@ -36,13 +36,12 @@ function usage ()
 {
 	cat <<- EOT
 
-  Usage :  ${0##/*/} [options] [--] 
+  Usage :  ${0##/*/} [options] [--] [backup_dir backup_dir ...]
 
   Options: 
   -h|help       Display this message
   -d            Dir to watch
   -e            Exclude list
-  -b            Backup dir
   -l            Log dir
 
 	EOT
@@ -118,9 +117,11 @@ replicate_files ()
             }
         }
         if $copy; then
-            cmd="cp --force --preserve=mode,timestamps,links --parents --update --verbose \"$file\" \"$backup_dir\" >> \"$cp_log\" 2>&1"
-            echo "$(date +'%F %T')|$cmd" >> "$cmd_log"
-            eval "$cmd" || echo "$(date +'%F %T')|$cmd" >> "$err_log"
+            for backup_dir in "${backup_dirs[@]}"; do
+                cmd="cp --force --preserve=mode,timestamps,links --parents --update --verbose \"$file\" \"$backup_dir\" >> \"$cp_log\" 2>&1"
+                echo "$(date +'%F %T')|$cmd" >> "$cmd_log"
+                eval "$cmd" || echo "$(date +'%F %T')|$cmd" >> "$err_log"
+            done
         fi
     done < "$inotify_pipe"
 
@@ -133,19 +134,32 @@ replicate_files ()
 #  Handle command line arguments
 #-----------------------------------------------------------------------
 exclude_list="none"
-while getopts ":d:e:b:l:h" opt
+while getopts ":d:e:l:h" opt
 do
   case $opt in
     h|help )  usage; exit 0   ;;
     d ) dir_to_watch=${OPTARG} ;;
     e ) exclude_list=${OPTARG} ;;
-    b ) backup_dir=${OPTARG} ;;
     l ) log_dir=${OPTARG} ;;
     \? )  echo -e "\n  Option does not exist : $OPTARG\n"
           usage; exit $ERR_SCRIPT   ;;
   esac
 done
 shift $(($OPTIND-1))
+
+declare -a backup_dirs
+backup_dirs=( "$@" )
+no_dir=false
+echo "snapsots (${#backup_dirs[@]}):"
+for el in "${backup_dirs[@]}"; do
+    [[ -d "$el" ]] && {
+        echo $el
+    } || {
+        no_dir=true
+        echo "Brak katalogu: \"$el\""
+    }
+done
+#exit
 #-------------------------------------------------------------------------------
 # pliki logów i pipki
 #-------------------------------------------------------------------------------
