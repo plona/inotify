@@ -16,18 +16,96 @@
 #       CREATED: 31.12.2016 19:01:38
 #      REVISION:  ---
 #===============================================================================
-
+#===============================================================================
+#  GLOBAL DECLARATIONS
+#===============================================================================
 set -o nounset                              # Treat unset variables as an error
+#set -o xtrace
+set -o errexit
+ERR_FUNC=2
+ERR_SCRIPT=1
+#PF='012d'                                       # printf format string
+#set -o xtrace
+#set -o verbose
+#===============================================================================
+#  FUNCTION DEFINITIONS
+#===============================================================================
+#---  FUNCTION  ----------------------------------------------------------------
+#         NAME:  usage
+#  DESCRIPTION:  Display usage information.
+#-------------------------------------------------------------------------------
+function usage ()
+{
+	cat <<- EOT
 
-sdir=$HOME/work
-ddir="/home/plona.nobackup/snapshots 1"
+  Usage :  ${0##/*/} [options] [--]
 
-cd "$sdir"
-rsync \
-    --verbose \
-    --progress \
-    --archive \
-    --update \
-    --delete \
-    --force \
-. "$ddir"
+  Options: 
+  -h|help       Display this message
+  -s            source dir
+  -d            dest dir
+  -e            exclude list
+  -n            no delete in dest
+	EOT
+}    # ----------  end of function usage  ----------
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  mycd
+#   DESCRIPTION:  
+#    PARAMETERS:  
+#       RETURNS:  
+#-------------------------------------------------------------------------------
+mycd ()
+{
+    cd "$1" || {
+        echo "Błąd cd $1"
+        exit $ERR_FUNC
+    }
+}    # ----------  end of function mycd  ----------
+#===============================================================================
+#  MAIN SCRIPT
+#===============================================================================
+#-----------------------------------------------------------------------
+#  Handle command line arguments
+#-----------------------------------------------------------------------
+rsync_opts=" --verbose --progress --archive --update"
+exclude_list="none"
+no_delete=false
+while getopts ":s:d:e:nh" opt
+do
+  case $opt in
+    h|help )  usage; exit 0   ;;
+    s ) sdir=${OPTARG} ;;
+    d ) ddir=${OPTARG} ;;
+    e ) exclude_list=${OPTARG} ;;
+    n ) no_delete=true ;;
+    \? )  echo -e "\n  Option does not exist : $OPTARG\n"
+          usage; exit $ERR_SCRIPT   ;;
+  esac
+done
+shift $(($OPTIND-1))
+
+echo "sdir = $sdir"
+echo "ddir = $ddir"
+echo "exclude_list = $exclude_list"
+echo "no_delete = $no_delete"
+
+[[ $no_delete == false ]] && rsync_opts+=" --delete --force"
+[[ "$exclude_list" != "none" ]] && rsync_opts+=" --exclude-from=\"$exclude_list\""
+echo
+echo "rsync_opts = $rsync_opts"
+[[ ! -d "$ddir" ]] && { echo "Brak $ddir"; exit $ERR_SCRIPT; }
+#exit
+
+mycd "$sdir"
+rsync $rsync_opts . "$ddir"
+#rsync \
+#    --verbose \
+#    --progress \
+#    --archive \
+#    --update \
+#    --delete \
+#    --force \
+#. "$ddir"
+
+exit 0
