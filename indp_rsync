@@ -1,0 +1,33 @@
+#!/bin/bash - 
+#===============================================================================
+#
+#          FILE: indp_rsync
+# 
+#         USAGE: ./indp_rsync 
+# 
+#   DESCRIPTION: 
+# 
+#       OPTIONS: ---
+#  REQUIREMENTS: ---
+#          BUGS: ---
+#         NOTES: ---
+#        AUTHOR: Marek Płonka (marekpl), marek.plonka@nask.pl
+#  ORGANIZATION: NASK
+#       CREATED: 31.12.2016 19:01:38
+#      REVISION:  ---
+#===============================================================================
+
+set -o nounset                              # Treat unset variables as an error
+
+sdir=$HOME/work
+ddir="/home/plona.nobackup/snapshots 1"
+
+cd "$sdir"
+rsync \
+    --verbose \
+    --progress \
+    --archive \
+    --update \
+    --delete \
+    --force \
+. "$ddir"
