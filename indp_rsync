@@ -25,8 +25,6 @@ set -o errexit
 ERR_FUNC=2
 ERR_SCRIPT=1
 #PF='012d'                                       # printf format string
-#set -o xtrace
-#set -o verbose
 #===============================================================================
 #  FUNCTION DEFINITIONS
 #===============================================================================
@@ -91,21 +89,15 @@ echo "exclude_list = $exclude_list"
 echo "no_delete = $no_delete"
 
 [[ $no_delete == false ]] && rsync_opts+=" --delete --force"
-[[ "$exclude_list" != "none" ]] && rsync_opts+=" --exclude-from=\"$exclude_list\""
+[[ "$exclude_list" != "none" ]] && rsync_opts+=" --exclude-from='$exclude_list'"
 echo
 echo "rsync_opts = $rsync_opts"
 [[ ! -d "$ddir" ]] && { echo "Brak $ddir"; exit $ERR_SCRIPT; }
-#exit
 
 mycd "$sdir"
-rsync $rsync_opts . "$ddir"
-#rsync \
-#    --verbose \
-#    --progress \
-#    --archive \
-#    --update \
-#    --delete \
-#    --force \
-#. "$ddir"
+cmd="rsync $rsync_opts . \"$ddir\""
+echo $cmd
+eval "$cmd"
+#rsync $rsync_opts . "$ddir"
 
 exit 0

@@ -1,0 +1,2 @@
+container/Wideo/
+*/Szablony
