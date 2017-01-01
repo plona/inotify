@@ -120,14 +120,15 @@ while read dirname; do
         ext=$(basename $(pwd))
         cur_ddir="$ddir/$ext"
         [[ "$exclude_list" != "none" ]] && {
-            [[ -r "$exclude_list.$ext" ]] && rsync_cur_opts+=" --exclude-from='$exclude_list.$ext'"
+            [[ -r "$exclude_list.$ext" ]] && rsync_cur_opts+=" --exclude-from=\"$exclude_list.$ext\""
         }
-        cmd="rsync $rsync_cur_opts . \"$cur_ddir\" &"
+        cmd="rsync $rsync_cur_opts . \"$cur_ddir\""
+        #tmux_run="tmux new-session -d '""$cmd"";while true; do true; done'"
+        tmux_run="tmux new-session -d '""$cmd""'"
         echo '########################################'
         pwd
-        echo $cmd
-        eval "$cmd"
-        disown
+        echo $tmux_run
+        eval "$tmux_run"
     popd > /dev/null
 done
 
