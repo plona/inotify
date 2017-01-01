@@ -96,8 +96,12 @@ echo "rsync_opts = $rsync_opts"
 
 mycd "$sdir"
 cmd="rsync $rsync_opts . \"$ddir\""
+date
+echo '########################################'
 echo $cmd
 eval "$cmd"
 #rsync $rsync_opts . "$ddir"
+echo '########################################'
+date
 
 exit 0
