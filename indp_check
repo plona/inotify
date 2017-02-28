@@ -5,7 +5,7 @@
 # 
 #         USAGE: ./indp-check 
 # 
-#   DESCRIPTION: sprawdza stan procesów indp
+#   DESCRIPTION: sprawdza stan procesów indp (dla zabbix-a)
 # 
 #       OPTIONS: ---
 #  REQUIREMENTS: ---
@@ -23,7 +23,7 @@ set -o nounset                              # Treat unset variables as an error
 ERR_FUNC=2
 ERR_SCRIPT=1
 INDP_PREFIX='indp.'
-#PF='012d'                                       # printf format string
+LOGDIR='/var/log'
 #set -o xtrace
 #set -o verbose
 #===============================================================================
@@ -42,6 +42,7 @@ function usage ()
   Options: 
   -h|help       Display this message
   -v            verbose
+  -l            Log dir (default /var/log)
 
 	EOT
 }    # ----------  end of function usage  ----------
@@ -53,22 +54,72 @@ function usage ()
 #-------------------------------------------------------------------------------
 check_pipe ()
 {
-    [[ -p "/tmp/$1.pipe" ]] || {
+    local pipe
+    pipe="/tmp/$1.pipe"
+    [[ -p "$pipe" ]] || {
+        [[ $verbose == true ]] && echo "Brak nazwanego potoku $pipe"
         echo "0"
-        exit $ERR_FUNCTION
+        exit $ERR_FUNC
     }
 }    # ----------  end of function check_pipe  ----------
 
-#!/bin/bash
-# argument - nazwa lub nr indp lub lista lub nic
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  check_dir
+#   DESCRIPTION:  
+#    PARAMETERS:  
+#       RETURNS:  
+#-------------------------------------------------------------------------------
+check_dir ()
+{
+    local logdir errfile
+    logdir="$LOGDIR$1.log"
+    errfile="$logdir/cp.err"
+    [[ -d "$logdir" ]] || {
+        [[ $verbose == true ]] && echo "Brak katalogu $logdir"
+        echo "0"
+        exit $ERR_FUNC
+    }
+    [[ -f "$errfile" ]] && {
+        [[ $verbose == true ]] && echo "Wystąpiły błedy kopiowania. Sprawdź plik: $errfile"
+        echo "0"
+        exit $ERR_FUNC
+    }
 
-# ls -1 /tmp | grep indp
-# na każdą pipke powinny być dwa procesy indp i jeden inotifywait
+}    # ----------  end of function check_dir  ----------
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  check_ps
+#   DESCRIPTION:  
+#    PARAMETERS:  
+#       RETURNS:  
+#-------------------------------------------------------------------------------
+check_ps ()
+{
+    local is_inotify proc oIFS
+    local -a indp_ps
 
-# pstree -spA 17137# 
-# brak = err
+    oIFS=$IFS
+    IFS=$'\n' indp_ps=($(ps -u root | grep "$1" | awk '{print $1}'))
+    IFS=$oIFS
 
-# na każdą pipkę powinien być katalog /var/log
+    # muszą być dokładnie dwa procesy indp
+    [[ ${#indp_ps[*]} -ne 2 ]] && {
+        [[ $verbose == true ]] && echo "Brak jednego lub obu procesów $1, lub jest ich zbyt wiele."
+        echo "0"
+        exit $ERR_FUNC
+    }
+
+    # i dokładnie jeden proces potomny inotifywait
+    is_inotify=0
+    for proc in "${indp_ps[@]}"; do
+        (( is_inotify+=$(pstree -spA $proc | grep -w inotifywait | wc -l) ))
+    done
+    [[ $is_inotify -ne 1 ]] && {
+        [[ $verbose == true ]] && echo "Brak procesu potomnego >>inotifywait<< dla $1, lub jest ich zbyt wiele."
+        echo "0"
+        exit $ERR_FUNC
+    }
+}    # ----------  end of function check_ps  ----------
+
 # w katalogu logów sprawdzamy niezerową długość cp.err
 #===============================================================================
 #  MAIN SCRIPT
@@ -77,16 +128,18 @@ check_pipe ()
 #  Handle command line arguments
 #-----------------------------------------------------------------------
 verbose=false
-while getopts ":hv" opt
+while getopts ":hvl:" opt
 do
   case $opt in
     h )  usage; exit 0   ;;
     v )  verbose=true   ;;
+    l )  LOGDIR=${OPTARG}   ;;
     \? )  echo -e "\n  Option does not exist : $OPTARG\n"
           usage; exit $ERR_SCRIPT   ;;
   esac
 done
 shift $(($OPTIND-1))
+LOGDIR="$LOGDIR/"
 
 [[ $# -gt 0 ]] || {
     [[ $verbose == true ]] && echo "Brak listy"
@@ -99,3 +152,15 @@ indp_processes=( "$@" )
 for ((i=0; $i<${#indp_processes[*]}; i+=1)); do
     indp_processes[$i]="$INDP_PREFIX${indp_processes[$i]}"
 done
+
+for el in "${indp_processes[@]}"; do
+    [[ $verbose == true ]] && echo -n "proces $el: "
+    check_pipe "$el"
+    check_ps "$el"
+    check_dir "$el"
+done
+
+[[ $verbose == true ]] && echo "OK"
+echo "1"
+exit 0
+
