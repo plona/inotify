@@ -1,0 +1,101 @@
+#!/bin/bash - 
+#===============================================================================
+#
+#          FILE: indp-check
+# 
+#         USAGE: ./indp-check 
+# 
+#   DESCRIPTION: sprawdza stan procesów indp
+# 
+#       OPTIONS: ---
+#  REQUIREMENTS: ---
+#          BUGS: ---
+#         NOTES: ---
+#        AUTHOR: Marek Płonka (marekpl), marek.plonka@nask.pl
+#  ORGANIZATION: NASK
+#       CREATED: 28.02.2017 09:59:28
+#      REVISION:  ---
+#===============================================================================
+#===============================================================================
+#  GLOBAL DECLARATIONS
+#===============================================================================
+set -o nounset                              # Treat unset variables as an error
+ERR_FUNC=2
+ERR_SCRIPT=1
+INDP_PREFIX='indp.'
+#PF='012d'                                       # printf format string
+#set -o xtrace
+#set -o verbose
+#===============================================================================
+#  FUNCTION DEFINITIONS
+#===============================================================================
+#---  FUNCTION  ----------------------------------------------------------------
+#         NAME:  usage
+#  DESCRIPTION:  Display usage information.
+#-------------------------------------------------------------------------------
+function usage ()
+{
+	cat <<- EOT
+
+  Usage :  ${0##/*/} [options] [--] [nr nr ...]
+
+  Options: 
+  -h|help       Display this message
+  -v            verbose
+
+	EOT
+}    # ----------  end of function usage  ----------
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  check_pipe
+#   DESCRIPTION:  
+#    PARAMETERS:  
+#       RETURNS:  
+#-------------------------------------------------------------------------------
+check_pipe ()
+{
+    [[ -p "/tmp/$1.pipe" ]] || {
+        echo "0"
+        exit $ERR_FUNCTION
+    }
+}    # ----------  end of function check_pipe  ----------
+
+#!/bin/bash
+# argument - nazwa lub nr indp lub lista lub nic
+
+# ls -1 /tmp | grep indp
+# na każdą pipke powinny być dwa procesy indp i jeden inotifywait
+
+# pstree -spA 17137# 
+# brak = err
+
+# na każdą pipkę powinien być katalog /var/log
+# w katalogu logów sprawdzamy niezerową długość cp.err
+#===============================================================================
+#  MAIN SCRIPT
+#===============================================================================
+#-----------------------------------------------------------------------
+#  Handle command line arguments
+#-----------------------------------------------------------------------
+verbose=false
+while getopts ":hv" opt
+do
+  case $opt in
+    h )  usage; exit 0   ;;
+    v )  verbose=true   ;;
+    \? )  echo -e "\n  Option does not exist : $OPTARG\n"
+          usage; exit $ERR_SCRIPT   ;;
+  esac
+done
+shift $(($OPTIND-1))
+
+[[ $# -gt 0 ]] || {
+    [[ $verbose == true ]] && echo "Brak listy"
+    echo "0"
+    exit $ERR_SCRIPT
+}
+
+declare -a indp_processes
+indp_processes=( "$@" )
+for ((i=0; $i<${#indp_processes[*]}; i+=1)); do
+    indp_processes[$i]="$INDP_PREFIX${indp_processes[$i]}"
+done
