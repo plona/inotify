@@ -24,6 +24,13 @@ ERR_FUNC=2
 ERR_SCRIPT=1
 INDP_PREFIX='indp.'
 LOGDIR='/var/log'
+# rozszerzone logowanie (diagnostyka problemów)
+#logfile=$(basename $0)
+#logfile="/dev/shm/$logfile.log"
+#echo "########################################" >> "$logfile"
+#date >> "$logfile"
+#echo "########################################" >> "$logfile"
+#exec 2>>"$logfile"
 #set -o xtrace
 #set -o verbose
 #===============================================================================
