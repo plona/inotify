@@ -44,6 +44,7 @@ function usage ()
   -d            dest dir
   -e            exclude list
   -n            no delete in dest
+  -r            dest dir is remote dir
 	EOT
 }    # ----------  end of function usage  ----------
 
@@ -69,7 +70,8 @@ mycd ()
 rsync_opts=" --verbose --progress --archive --update"
 exclude_list="none"
 no_delete=false
-while getopts ":s:d:e:nh" opt
+remote=false
+while getopts ":s:d:e:nrh" opt
 do
   case $opt in
     h|help )  usage; exit 0   ;;
@@ -77,6 +79,7 @@ do
     d ) ddir=${OPTARG} ;;
     e ) exclude_list=${OPTARG} ;;
     n ) no_delete=true ;;
+    r ) remote=true ;;
     \? )  echo -e "\n  Option does not exist : $OPTARG\n"
           usage; exit $ERR_SCRIPT   ;;
   esac
@@ -87,12 +90,15 @@ echo "sdir = $sdir"
 echo "ddir = $ddir"
 echo "exclude_list = $exclude_list"
 echo "no_delete = $no_delete"
+echo "remote = $remote"
 
 [[ $no_delete == false ]] && rsync_opts+=" --delete --force"
 [[ "$exclude_list" != "none" ]] && rsync_opts+=" --exclude-from='$exclude_list'"
 echo
 echo "rsync_opts = $rsync_opts"
-[[ ! -d "$ddir" ]] && { echo "Brak $ddir"; exit $ERR_SCRIPT; }
+[[ $remote == false ]] && {
+    [[ ! -d "$ddir" ]] && { echo "Brak $ddir"; exit $ERR_SCRIPT; }
+}
 
 mycd "$sdir"
 cmd="rsync $rsync_opts . \"$ddir\""
